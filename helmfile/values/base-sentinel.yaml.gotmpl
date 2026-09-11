@@ -32,7 +32,7 @@ config:
       {{ if or (eq (env "JWT_AUTH_ENABLED" | default "false") "true") (eq (env "EXT_AUTHZ_ENABLED" | default "false") "true") }}
       auth:
         enabled: true
-        audience: {{ .Values.machineIdentityAudience | quote }}
+        audience: {{ .Values.apiAudience | quote }}
       {{ end }}
 
 broker:

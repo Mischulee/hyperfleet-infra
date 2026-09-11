@@ -25,13 +25,17 @@ auth:
   extAuthz:
     enabled: {{ env "EXT_AUTHZ_ENABLED" | default "false" }}
 
-  # OIDC issuer the human-jwt AuthConfig validates tokens against. On GCP this is
-  # populated by Terraform (generated-values-from-terraform/oidc.env).
+  # OIDC issuer the human-jwt AuthConfig validates tokens against. The chart
+  # derives the test-only mock URL from its release namespace. External mode
+  # preserves the Terraform or CLI-supplied issuer.
   oidc:
+    mode: {{ .Values.oidcIssuerMode | quote }}
+    {{- if eq .Values.oidcIssuerMode "external" }}
     issuerUrl: {{ env "OIDC_ISSUER_URL" | default "" | quote }}
+    {{- end }}
 
   machineIdentity:
-    audience: {{ .Values.machineIdentityAudience | quote }}
+    audience: {{ .Values.apiAudience | quote }}
     # Exact SA allow-list, derived from the sentinels/adapters actually declared for
     # this environment (environments/<env>/{sentinel,adapter}-configs.yaml.gotmpl) so
     # it can't drift from the releases deployed. See helm/hyperfleet-gateway/values.yaml.
@@ -42,6 +46,9 @@ auth:
       {{- range .Values.adapters }}
       - {{ printf "%s-hyperfleet-adapter" .name | quote }}
       {{- end }}
+
+  humanIdentity:
+    audience: {{ .Values.apiAudience | quote }}
 
   authorino:
     {{/*

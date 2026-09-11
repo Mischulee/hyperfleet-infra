@@ -132,9 +132,15 @@ auth:
     logging:
       level: info
 
-  # OIDC issuer for human-jwt AuthConfig (OIDC_ISSUER_URL).
+  # OIDC issuer mode for human-jwt AuthConfig. External mode is HTTPS-only;
+  # mock mode derives its deterministic in-cluster Service URL in the chart.
   oidc:
+    mode: external
     issuerUrl: ""
+
+  humanIdentity:
+    # Human JWTs must include this value in their aud claim.
+    audience: hyperfleet-api
 
   # Machine identity (adapters/sentinels) via kubernetesTokenReview - see authconfig.yaml.
   machineIdentity:
