@@ -38,6 +38,49 @@ module "ci_sweep" {
   freeform_tags = local.tags
 }
 
+resource "terraform_data" "postgresql_regional_durability_check" {
+  count = var.postgresql_enabled ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !(var.postgresql_storage_is_regionally_durable && var.region == "us-sanjose-1")
+      error_message = "postgresql_storage_is_regionally_durable cannot be true in us-sanjose-1 (single availability domain). Set to false or use a multi-AD region."
+    }
+  }
+}
+
+module "managed_postgresql" {
+  count = var.postgresql_enabled ? 1 : 0
+
+  source            = "../modules/postgresql/oci"
+  compartment_id    = var.postgresql_compartment_id
+  ci_compartment_id = module.ci_compartment.id
+  tenancy_ocid      = var.tenancy_ocid
+  subnet_id         = var.postgresql_subnet_id
+
+  display_name                  = var.postgresql_display_name
+  db_version                    = var.postgresql_db_version
+  shape                         = var.postgresql_shape
+  instance_ocpu_count           = var.postgresql_instance_ocpu_count
+  instance_memory_size_in_gbs   = var.postgresql_instance_memory_size_in_gbs
+  instance_count                = var.postgresql_instance_count
+  availability_domain           = var.postgresql_availability_domain
+  storage_is_regionally_durable = var.postgresql_storage_is_regionally_durable
+  admin_username                = var.postgresql_admin_username
+  admin_password_secret_id      = var.postgresql_admin_password_secret_id
+  admin_password_secret_version = var.postgresql_admin_password_secret_version
+  nsg_ids                       = var.postgresql_nsg_ids
+  backup_retention_days         = var.postgresql_backup_retention_days
+  backup_start                  = var.postgresql_backup_start
+
+  freeform_tags = {
+    "hyperfleet-managed-by" = "terraform"
+    "hyperfleet-purpose"    = "oci-deployment-path-postgresql"
+  }
+
+  depends_on = [terraform_data.postgresql_regional_durability_check]
+}
+
 locals {
   tags = {
     "hyperfleet-managed-by" = "terraform"
