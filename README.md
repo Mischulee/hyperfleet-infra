@@ -302,8 +302,8 @@ and the labeled token helper, and uses in-memory signing keys. A mock issuer
 restart invalidates previously minted tokens, so mint a fresh token after every
 rollout. Set `OIDC_ISSUER_MODE=external` to use a real issuer in any environment.
 External mode always requires a reachable `https://` `OIDC_ISSUER_URL`; mock
-mode requires `OIDC_ISSUER_URL` to be unset and derives its Service URL in the
-gateway chart. Terraform-generated issuer values are loaded only for the regular
+mode requires `OIDC_ISSUER_URL` to be unset and derives its Service URL in
+Helmfile. Terraform-generated issuer values are loaded only for the regular
 `gcp` environment. Mock mode is allowed only in `kind`, `e2e-kind`, and
 `e2e-gcp`; use `e2e-gcp` for a GCP-backed test with the mock issuer.
 

@@ -800,6 +800,8 @@ validate-mock-oidc: check-helm ## Validate the test-only mock OIDC chart and iss
 			|| { echo "ERROR: Helmfile mock-mode build failed for $$env"; exit 1; }; \
 		echo "$$build" | grep -q 'name: hyperfleet-mock-oidc' \
 			|| { echo "ERROR: mock issuer release missing for $$env"; exit 1; }; \
+		echo "$$build" | grep -Fq "oidcIssuerUrl: http://hyperfleet-mock-oidc.hf-validate-$$env.svc.cluster.local:8080/default" \
+			|| { echo "ERROR: Helmfile did not pass the mock issuer URL to the gateway for $$env"; exit 1; }; \
 	done; \
 	if HELMFILE_ENV=kind NAMESPACE=hf-validate-kind EXT_AUTHZ_ENABLED=true OIDC_ISSUER_MODE=mock OIDC_ISSUER_URL= JWT_AUTH_ENABLED=true \
 		helmfile -f helmfile/helmfile.yaml.gotmpl -e kind build >/dev/null 2>&1; then \
@@ -816,28 +818,29 @@ validate-mock-oidc: check-helm ## Validate the test-only mock OIDC chart and iss
 	build=$$(HELMFILE_ENV=gcp NAMESPACE=hf-validate-gcp EXT_AUTHZ_ENABLED=true TENANT_ISOLATION_ENABLED=true OIDC_ISSUER_MODE=external OIDC_ISSUER_URL=https://issuer.invalid \
 		helmfile -f helmfile/helmfile.yaml.gotmpl -e gcp build) \
 		|| { echo "ERROR: Helmfile external-mode build failed for gcp"; exit 1; }; \
+	echo "$$build" | grep -Fq 'oidcIssuerUrl: https://issuer.invalid' \
+		|| { echo "ERROR: Helmfile did not pass the external issuer URL to the gateway"; exit 1; }; \
 	echo "$$build" | grep -q 'name: hyperfleet-mock-oidc' \
-		|| { echo "ERROR: mock issuer release is missing from state for regular gcp external mode cleanup"; exit 1; }
+		|| { echo "ERROR: mock issuer release is missing from state for regular gcp external mode cleanup"; exit 1; }; \
+	if HELMFILE_ENV=gcp NAMESPACE=hf-validate-gcp EXT_AUTHZ_ENABLED=true OIDC_ISSUER_MODE=external OIDC_ISSUER_URL=http://issuer.invalid \
+		helmfile -f helmfile/helmfile.yaml.gotmpl -e gcp build >/dev/null 2>&1; then \
+		echo "ERROR: Helmfile accepted an HTTP issuer in external mode"; exit 1; \
+	fi
 	@if ! helm template gw $(HELM_DIR)/hyperfleet-gateway --namespace default \
 		--set auth.extAuthz.enabled=true --set tenant.model=onprem \
-		--set auth.oidc.mode=mock >/dev/null; then \
-		echo "ERROR: derived mock issuer URL was rejected"; exit 1; \
+		--set-string auth.oidc.issuerUrl=http://issuer.invalid/default >/dev/null; then \
+		echo "ERROR: gateway chart rejected a directly configured HTTP issuer"; exit 1; \
 	fi
 	@if helm template gw $(HELM_DIR)/hyperfleet-gateway --namespace default \
-		--set auth.extAuthz.enabled=true --set auth.oidc.mode=external \
-		--set-string auth.oidc.issuerUrl=http://issuer.invalid/default >/dev/null 2>&1; then \
-		echo "ERROR: HTTP issuer was accepted in external mode"; exit 1; \
+		--set auth.extAuthz.enabled=true >/dev/null 2>&1; then \
+		echo "ERROR: empty issuer URL was accepted"; exit 1; \
 	fi
 	@if helm template gw $(HELM_DIR)/hyperfleet-gateway --namespace default \
-		--set auth.extAuthz.enabled=true --set auth.oidc.mode=external >/dev/null 2>&1; then \
-		echo "ERROR: empty external issuer was accepted"; exit 1; \
+		--set auth.extAuthz.enabled=true \
+		--set-string auth.oidc.issuerUrl=issuer.invalid/default >/dev/null 2>&1; then \
+		echo "ERROR: malformed issuer URL was accepted"; exit 1; \
 	fi
-	@if helm template gw $(HELM_DIR)/hyperfleet-gateway --namespace default \
-		--set auth.extAuthz.enabled=true --set auth.oidc.mode=bogus \
-		--set-string auth.oidc.issuerUrl=https://issuer.invalid/default >/dev/null 2>&1; then \
-		echo "ERROR: invalid issuer mode was accepted"; exit 1; \
-	fi
-	@echo "OK: mock OIDC chart and issuer-mode guards are valid"
+	@echo "OK: mock OIDC chart and Helmfile issuer-mode guards are valid"
 
 .PHONY: validate-authorino
 validate-authorino: check-helm ## Validate gateway auth templates

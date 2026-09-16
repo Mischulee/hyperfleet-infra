@@ -132,10 +132,9 @@ auth:
     logging:
       level: info
 
-  # OIDC issuer mode for human-jwt AuthConfig. External mode is HTTPS-only;
-  # mock mode derives its deterministic in-cluster Service URL in the chart.
+  # OIDC issuer for the human-jwt AuthConfig. Deployment tooling selects the
+  # appropriate issuer; the chart does not distinguish test and production use.
   oidc:
-    mode: external
     issuerUrl: ""
 
   humanIdentity:

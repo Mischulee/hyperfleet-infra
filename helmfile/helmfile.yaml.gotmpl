@@ -1,12 +1,23 @@
 {{- $oidcIssuerMode := requiredEnv "OIDC_ISSUER_MODE" -}}
-{{- if and (eq $oidcIssuerMode "mock") (not (or (eq .Environment.Name "kind") (eq .Environment.Name "e2e-kind") (eq .Environment.Name "e2e-gcp"))) -}}
+{{- $oidcIssuerUrl := env "OIDC_ISSUER_URL" | default "" -}}
+{{- $extAuthzEnabled := eq (env "EXT_AUTHZ_ENABLED" | default "false") "true" -}}
+{{- if eq $oidcIssuerMode "mock" -}}
+{{- if not (or (eq .Environment.Name "kind") (eq .Environment.Name "e2e-kind") (eq .Environment.Name "e2e-gcp")) -}}
 {{- fail "OIDC_ISSUER_MODE=mock is test-only and is allowed only with kind, e2e-kind, or e2e-gcp" -}}
 {{- end }}
-{{- if and (eq $oidcIssuerMode "mock") (ne (env "OIDC_ISSUER_URL" | default "") "") -}}
+{{- if ne $oidcIssuerUrl "" -}}
 {{- fail "OIDC_ISSUER_URL must be empty when OIDC_ISSUER_MODE=mock; remove the external issuer or select external mode" -}}
 {{- end }}
-{{- if and (eq (env "EXT_AUTHZ_ENABLED" | default "false") "true") (eq $oidcIssuerMode "mock") (eq (env "JWT_AUTH_ENABLED" | default "false") "true") -}}
+{{- if and $extAuthzEnabled (eq (env "JWT_AUTH_ENABLED" | default "false") "true") -}}
 {{- fail "JWT_AUTH_ENABLED=true is incompatible with EXT_AUTHZ_ENABLED=true and OIDC_ISSUER_MODE=mock; the API must not validate the HTTP mock issuer" -}}
+{{- end }}
+{{- $oidcIssuerUrl = printf "http://hyperfleet-mock-oidc.%s.svc.cluster.local:8080/default" (requiredEnv "NAMESPACE") -}}
+{{- else if eq $oidcIssuerMode "external" -}}
+{{- if and $extAuthzEnabled (not (regexMatch "^https://[a-zA-Z0-9]" $oidcIssuerUrl)) -}}
+{{- fail (printf "OIDC_ISSUER_URL must be a valid https:// URL when EXT_AUTHZ_ENABLED=true and OIDC_ISSUER_MODE=external (got: %q)" $oidcIssuerUrl) -}}
+{{- end }}
+{{- else -}}
+{{- fail (printf "OIDC_ISSUER_MODE=%q must be mock or external" $oidcIssuerMode) -}}
 {{- end }}
 # Helmfile configuration
 # Documentation: https://helmfile.readthedocs.io/
@@ -22,6 +33,7 @@ helmDefaults:
 values:
   - namespace: {{ requiredEnv "NAMESPACE" }}
   - oidcIssuerMode: {{ $oidcIssuerMode | quote }}
+  - oidcIssuerUrl: {{ $oidcIssuerUrl | quote }}
   - chartOrg: {{ env "CHART_ORG" | default "openshift-hyperfleet" }}
   # API audience shared by human JWTs and adapter/sentinel ServiceAccount tokens.
   - apiAudience: hyperfleet-api

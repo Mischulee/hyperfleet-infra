@@ -4,20 +4,12 @@
 {{- if not $cfg }}
 {{- fail (printf "tenant.model %q not found in .Values.tenant.models (expected e.g. onprem|oracle)" $model) }}
 {{- end }}
-{{- $issuerMode := .Values.auth.oidc.mode | default "external" }}
-{{- if and (ne $issuerMode "mock") (ne $issuerMode "external") }}
-{{- fail (printf "auth.oidc.mode %q must be mock or external" $issuerMode) }}
-{{- end }}
 {{- $issuerUrl := .Values.auth.oidc.issuerUrl }}
-{{- if eq $issuerMode "external" }}
 {{- if not $issuerUrl }}
-{{- fail "auth.oidc.issuerUrl (OIDC_ISSUER_URL) is required in external mode when auth.extAuthz.enabled=true: the gateway is fail-closed and an empty issuer means every request is denied" }}
+{{- fail "auth.oidc.issuerUrl is required when auth.extAuthz.enabled=true: the gateway is fail-closed and an empty issuer means every request is denied" }}
 {{- end }}
-{{- if not (regexMatch "^https://[a-zA-Z0-9]" $issuerUrl) }}
-{{- fail (printf "auth.oidc.issuerUrl must be an https:// URL in external mode (got: %q)" $issuerUrl) }}
-{{- end }}
-{{- else }}
-{{- $issuerUrl = printf "http://hyperfleet-mock-oidc.%s.svc.cluster.local:8080/default" .Release.Namespace }}
+{{- if not (regexMatch "^https?://[a-zA-Z0-9]" $issuerUrl) }}
+{{- fail (printf "auth.oidc.issuerUrl must be a valid http:// or https:// URL (got: %q)" $issuerUrl) }}
 {{- end }}
 {{- if not .Values.auth.humanIdentity.audience }}
 {{- fail "auth.humanIdentity.audience must not be empty" }}

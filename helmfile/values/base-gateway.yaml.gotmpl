@@ -25,14 +25,10 @@ auth:
   extAuthz:
     enabled: {{ env "EXT_AUTHZ_ENABLED" | default "false" }}
 
-  # OIDC issuer the human-jwt AuthConfig validates tokens against. The chart
-  # derives the test-only mock URL from its release namespace. External mode
-  # preserves the Terraform or CLI-supplied issuer.
+  # Helmfile resolves the environment-specific issuer. The gateway chart only
+  # receives the resulting URL and remains independent of the mock test setup.
   oidc:
-    mode: {{ .Values.oidcIssuerMode | quote }}
-    {{- if eq .Values.oidcIssuerMode "external" }}
-    issuerUrl: {{ env "OIDC_ISSUER_URL" | default "" | quote }}
-    {{- end }}
+    issuerUrl: {{ .Values.oidcIssuerUrl | quote }}
 
   machineIdentity:
     audience: {{ .Values.apiAudience | quote }}
