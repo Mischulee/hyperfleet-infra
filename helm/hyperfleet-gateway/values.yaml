@@ -132,9 +132,14 @@ auth:
     logging:
       level: info
 
-  # OIDC issuer for human-jwt AuthConfig (OIDC_ISSUER_URL).
+  # OIDC issuer for the human-jwt AuthConfig. Deployment tooling selects the
+  # appropriate issuer; the chart does not distinguish test and production use.
   oidc:
     issuerUrl: ""
+
+  humanIdentity:
+    # Human JWTs must include this value in their aud claim.
+    audience: hyperfleet-api
 
   # Machine identity (adapters/sentinels) via kubernetesTokenReview - see authconfig.yaml.
   machineIdentity:

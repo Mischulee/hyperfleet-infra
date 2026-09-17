@@ -4,11 +4,15 @@
 {{- if not $cfg }}
 {{- fail (printf "tenant.model %q not found in .Values.tenant.models (expected e.g. onprem|oracle)" $model) }}
 {{- end }}
-{{- if not .Values.auth.oidc.issuerUrl }}
-{{- fail "auth.oidc.issuerUrl (OIDC_ISSUER_URL) is required when auth.extAuthz.enabled=true: the gateway is fail-closed and an empty issuer means every request is denied" }}
+{{- $issuerUrl := .Values.auth.oidc.issuerUrl }}
+{{- if not $issuerUrl }}
+{{- fail "auth.oidc.issuerUrl is required when auth.extAuthz.enabled=true: the gateway is fail-closed and an empty issuer means every request is denied" }}
 {{- end }}
-{{- if not (regexMatch "^https://" .Values.auth.oidc.issuerUrl) }}
-{{- fail (printf "auth.oidc.issuerUrl must be an https:// URL (got: %q)" .Values.auth.oidc.issuerUrl) }}
+{{- if not (regexMatch "^https?://[a-zA-Z0-9]" $issuerUrl) }}
+{{- fail (printf "auth.oidc.issuerUrl must be a valid http:// or https:// URL (got: %q)" $issuerUrl) }}
+{{- end }}
+{{- if not .Values.auth.humanIdentity.audience }}
+{{- fail "auth.humanIdentity.audience must not be empty" }}
 {{- end }}
 {{- if not .Values.auth.machineIdentity.allowedServiceAccounts }}
 {{- fail "auth.machineIdentity.allowedServiceAccounts must not be empty" }}
@@ -54,8 +58,7 @@ spec:
       when:
         - predicate: request.headers['authorization'].startsWith('Bearer ')
       jwt:
-        # TODO(HYPERFLEET-1485): kind needs mock IdP for oidc.issuerUrl in e2e.
-        issuerUrl: {{ .Values.auth.oidc.issuerUrl | quote }}
+        issuerUrl: {{ $issuerUrl | quote }}
       credentials:
         authorizationHeader:
           prefix: Bearer
@@ -63,6 +66,20 @@ spec:
         hf_system:
           value: "false"
   authorization:
+    # Human JWTs must be intended for this API. OIDC discovery verifies the
+    # issuer and signature, but does not enforce the aud claim.
+    "require-human-audience":
+      when:
+        - selector: auth.identity.hf_system
+          operator: neq
+          value: "true"
+      patternMatching:
+        patterns:
+          # RFC 7519 permits aud to be either one string or an array.
+          - predicate: >-
+              type(auth.identity.aud) == string
+                ? auth.identity.aud == {{ .Values.auth.humanIdentity.audience | quote }}
+                : auth.identity.aud.exists(audience, audience == {{ .Values.auth.humanIdentity.audience | quote }})
     # Machine callers only: allow only the exact SAs listed in
     # auth.machineIdentity.allowedServiceAccounts, in this namespace.
     # Audience alone is not the credential.

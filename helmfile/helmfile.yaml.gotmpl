@@ -1,3 +1,24 @@
+{{- $oidcIssuerMode := requiredEnv "OIDC_ISSUER_MODE" -}}
+{{- $oidcIssuerUrl := env "OIDC_ISSUER_URL" | default "" -}}
+{{- $extAuthzEnabled := eq (env "EXT_AUTHZ_ENABLED" | default "false") "true" -}}
+{{- if eq $oidcIssuerMode "mock" -}}
+{{- if not (or (eq .Environment.Name "kind") (eq .Environment.Name "e2e-kind") (eq .Environment.Name "e2e-gcp")) -}}
+{{- fail "OIDC_ISSUER_MODE=mock is test-only and is allowed only with kind, e2e-kind, or e2e-gcp" -}}
+{{- end }}
+{{- if ne $oidcIssuerUrl "" -}}
+{{- fail "OIDC_ISSUER_URL must be empty when OIDC_ISSUER_MODE=mock; remove the external issuer or select external mode" -}}
+{{- end }}
+{{- if and $extAuthzEnabled (eq (env "JWT_AUTH_ENABLED" | default "false") "true") -}}
+{{- fail "JWT_AUTH_ENABLED=true is incompatible with EXT_AUTHZ_ENABLED=true and OIDC_ISSUER_MODE=mock; the API must not validate the HTTP mock issuer" -}}
+{{- end }}
+{{- $oidcIssuerUrl = printf "http://hyperfleet-mock-oidc.%s.svc.cluster.local:8080/default" (requiredEnv "NAMESPACE") -}}
+{{- else if eq $oidcIssuerMode "external" -}}
+{{- if and $extAuthzEnabled (not (regexMatch "^https://[a-zA-Z0-9]" $oidcIssuerUrl)) -}}
+{{- fail (printf "OIDC_ISSUER_URL must be a valid https:// URL when EXT_AUTHZ_ENABLED=true and OIDC_ISSUER_MODE=external (got: %q)" $oidcIssuerUrl) -}}
+{{- end }}
+{{- else -}}
+{{- fail (printf "OIDC_ISSUER_MODE=%q must be mock or external" $oidcIssuerMode) -}}
+{{- end }}
 # Helmfile configuration
 # Documentation: https://helmfile.readthedocs.io/
 
@@ -11,9 +32,11 @@ helmDefaults:
 # Base values for all environments
 values:
   - namespace: {{ requiredEnv "NAMESPACE" }}
+  - oidcIssuerMode: {{ $oidcIssuerMode | quote }}
+  - oidcIssuerUrl: {{ $oidcIssuerUrl | quote }}
   - chartOrg: {{ env "CHART_ORG" | default "openshift-hyperfleet" }}
-  # TokenReview audience shared by gateway AuthConfig and adapter/sentinel clients.
-  - machineIdentityAudience: hyperfleet-api
+  # API audience shared by human JWTs and adapter/sentinel ServiceAccount tokens.
+  - apiAudience: hyperfleet-api
   - charts:
       api:
         chartRef: {{ env "API_CHART_REF" | default "main" }}
@@ -75,6 +98,19 @@ releases:
       component: rabbitmq
 {{ end }}
 
+  # Test-only human OIDC issuer. It must be ready before Authorino starts
+  # discovery and before Envoy can send authenticated traffic.
+  - name: hyperfleet-mock-oidc
+    namespace: {{ .Values.namespace }}
+    chart: ../helm/mock-oidc
+    # Keep this release in state when disabled so Helmfile removes a previously
+    # installed mock issuer during an auth-mode change or teardown.
+    installed: {{ and (eq (env "EXT_AUTHZ_ENABLED" | default "false") "true") (eq .Values.oidcIssuerMode "mock") }}
+    labels:
+      component: mock-oidc
+    values:
+      - fullnameOverride: hyperfleet-mock-oidc
+
   # HyperFleet API
   - name: hyperfleet-api
     namespace: {{ .Values.namespace }}
@@ -89,6 +125,9 @@ releases:
     chart: ../helm/hyperfleet-gateway
     needs:
       - hyperfleet-api
+{{ if and (eq (env "EXT_AUTHZ_ENABLED" | default "false") "true") (eq .Values.oidcIssuerMode "mock") }}
+      - hyperfleet-mock-oidc
+{{ end }}
     labels:
       component: gateway
     values:
@@ -144,4 +183,3 @@ releases:
 {{ toYaml .setFiles | indent 6 }}
 {{ end }}
 {{ end }}
-
