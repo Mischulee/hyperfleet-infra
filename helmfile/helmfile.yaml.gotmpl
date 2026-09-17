@@ -5,7 +5,7 @@
 {{- if not (or (eq .Environment.Name "kind") (eq .Environment.Name "e2e-kind") (eq .Environment.Name "e2e-gcp")) -}}
 {{- fail "OIDC_ISSUER_MODE=mock is test-only and is allowed only with kind, e2e-kind, or e2e-gcp" -}}
 {{- end }}
-{{- if ne $oidcIssuerUrl "" -}}
+{{- if and $extAuthzEnabled (ne $oidcIssuerUrl "") -}}
 {{- fail "OIDC_ISSUER_URL must be empty when OIDC_ISSUER_MODE=mock; remove the external issuer or select external mode" -}}
 {{- end }}
 {{- if and $extAuthzEnabled (eq (env "JWT_AUTH_ENABLED" | default "false") "true") -}}
