@@ -811,6 +811,9 @@ validate-mock-oidc: check-helm ## Validate the test-only mock OIDC chart and iss
 		helmfile -f helmfile/helmfile.yaml.gotmpl -e kind build >/dev/null 2>&1; then \
 		echo "ERROR: Helmfile accepted OIDC_ISSUER_URL with mock mode"; exit 1; \
 	fi; \
+	HELMFILE_ENV=kind NAMESPACE=hf-validate-kind EXT_AUTHZ_ENABLED=false OIDC_ISSUER_MODE=mock OIDC_ISSUER_URL=https://issuer.invalid JWT_AUTH_ENABLED=true \
+		helmfile -f helmfile/helmfile.yaml.gotmpl -e kind build >/dev/null \
+		|| { echo "ERROR: Helmfile rejected OIDC_ISSUER_URL with mock mode and EXT_AUTHZ_ENABLED=false"; exit 1; }; \
 	if HELMFILE_ENV=gcp NAMESPACE=hf-validate-gcp EXT_AUTHZ_ENABLED=true OIDC_ISSUER_MODE=mock OIDC_ISSUER_URL= \
 		helmfile -f helmfile/helmfile.yaml.gotmpl -e gcp build >/dev/null 2>&1; then \
 		echo "ERROR: Helmfile accepted the test-only mock issuer in regular gcp"; exit 1; \

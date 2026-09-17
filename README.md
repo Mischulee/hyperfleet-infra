@@ -301,10 +301,12 @@ keeps the issuer behind a ClusterIP Service, allows ingress only from Authorino
 and the labeled token helper, and uses in-memory signing keys. A mock issuer
 restart invalidates previously minted tokens, so mint a fresh token after every
 rollout. Set `OIDC_ISSUER_MODE=external` to use a real issuer in any environment.
-External mode always requires a reachable `https://` `OIDC_ISSUER_URL`; mock
-mode requires `OIDC_ISSUER_URL` to be unset and derives its Service URL in
-Helmfile. Terraform-generated issuer values are loaded only for the regular
-`gcp` environment. Mock mode is allowed only in `kind`, `e2e-kind`, and
+External mode requires a reachable `https://` `OIDC_ISSUER_URL` only when
+`EXT_AUTHZ_ENABLED=true`; when disabled, the gateway skips issuer validation. In
+mock mode, `OIDC_ISSUER_URL` must be unset when `EXT_AUTHZ_ENABLED=true` (Helmfile
+derives the mock Service URL itself); when `EXT_AUTHZ_ENABLED=false`, the
+gateway ignores it. Terraform-generated issuer values are loaded only for the
+regular `gcp` environment. Mock mode is allowed only in `kind`, `e2e-kind`, and
 `e2e-gcp`; use `e2e-gcp` for a GCP-backed test with the mock issuer.
 
 For the regular `gcp` environment, `make install-terraform` generates the
@@ -387,7 +389,7 @@ it while another HyperFleet namespace is using gateway authentication.
 | `EXT_AUTHZ_ENABLED` | `false` | Set to `true` to require authentication at the gateway |
 | `TENANT_ISOLATION_ENABLED` | `false` | Set to `true` to scope API resource access using trusted gateway headers; requires `EXT_AUTHZ_ENABLED=true` |
 | `OIDC_ISSUER_MODE` | `mock` except regular `gcp` (`external`) | Select `mock` or `external`; explicit CLI values override environment defaults |
-| `OIDC_ISSUER_URL` | unset | HTTPS issuer for `external` mode; must be unset in `mock` mode |
+| `OIDC_ISSUER_URL` | unset | HTTPS issuer for `external` mode; must be unset in `mock` mode when `EXT_AUTHZ_ENABLED=true` (ignored otherwise) |
 | `TENANT_MODEL` | `onprem` | Set to `oracle` when tokens use OCI tenancy claims |
 | `AUTHORINO_HOSTS` | unset | Add comma-separated external gateway hostnames if users access the gateway through them |
 | `AUTHORINO_LOG_LEVEL` | `info` | Increase only when diagnosing authentication problems |
